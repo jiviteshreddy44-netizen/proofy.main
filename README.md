@@ -1,3 +1,4 @@
+
 # PROOFY.AI // Neural Forensic Suite
 
 **PROOFY.AI** is a high-fidelity, world-class truth verification platform designed for a synthetic age. It leverages the latest advancements in Large Multimodal Models (LMMs) to interrogate media, detect deepfakes, verify facts, and generate auditable forensic documentation.
@@ -30,7 +31,6 @@
 
 - **Neural Forensic Aesthetic**: A charcoal-dark interface with neon-green (`#00FF88`) accents, tactical HUD elements, and bento-box layouts.
 - **Cinematic Animations**: Powered by `Framer Motion`, featuring data-particle fields, periodic laser-scan sweeps, and glitch-reveal typography.
-- **System Destabilization (Anti-Gravity)**: An interactive "easter egg" physics mode that deconstructs the UI into draggable, buoyant physical objects using a custom 2D physics engine.
 - **Responsive Design**: Fully optimized for tactical desktop workstations and mobile forensic units.
 
 ---
