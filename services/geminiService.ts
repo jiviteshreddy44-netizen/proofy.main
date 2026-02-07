@@ -7,7 +7,8 @@ import { AnalysisResult, Verdict, TextAnalysisResult } from "../types.ts";
  */
 const extractJson = (text: string) => {
   try {
-    const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    // Improved cleaning to handle edge cases in model output
+    const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").replace(/^[^{]*/, "").replace(/[^}]*$/, "").trim();
     return JSON.parse(cleanJson);
   } catch (e) {
     console.error("Failed to parse AI response as JSON:", text);
@@ -130,58 +131,63 @@ export const analyzeMedia = async (file: File, metadata: any): Promise<AnalysisR
 
   const isVideo = file.type.includes('video');
 
-  // Using gemini-3-pro-preview for maximum forensic sensitivity
   const response = await ai.models.generateContent({
     model: "gemini-3-pro-preview",
     contents: {
       parts: [
         { inlineData: { mimeType: file.type, data: base64Data } },
-        { text: `PERFORM EXHAUSTIVE FORENSIC ANALYSIS. 
-        You are a neural forensic investigator. Be extremely skeptical. Detect subtle AI-generated patterns, GAN artifacts, frequency domain anomalies, lighting inconsistencies, and biometric drifts.
-        ${isVideo ? "For videos, scan EVERY FRAME to detect temporal flickering, stitching artifacts, or facial warping." : "For images, check for checkerboard patterns, unnatural textures, and subsurface scattering failures."}
+        { text: `YOU ARE A HIGH-LEVEL NEURAL FORENSIC INVESTIGATOR. 
+        Your task is to detect if this media is AI-GENERATED or MANIPULATED. 
         
-        OUTPUT JSON:
+        CRITICAL INVESTIGATION PARAMETERS:
+        1. SKEPTICISM: Assume the media is a deepfake until proven otherwise.
+        2. ANATOMICAL CHECK: Count fingers, check eye pupil symmetry, hair-to-background blending, and ear complexity. AI often fails here.
+        3. PHYSICS & LIGHTING: Check for subsurface scattering on skin. Does light bounce realistically? Check for "ai-sheen" (over-smoothed, plasticky textures).
+        4. BACKGROUNDS: Look for impossible geometry, warped text in the background, or inconsistent depth-of-field blur patterns.
+        5. VIDEO ARTIFACTS: ${isVideo ? "Identify temporal flickering, facial mask 'tearing' during fast movement, and motion-blur inconsistencies." : "Look for GAN checkerboard artifacts and dithering patterns in shadows."}
+        
+        JSON STRUCTURE REQUIRED:
         {
           "verdict": "REAL" | "LIKELY_FAKE",
           "deepfakeProbability": 0-100,
           "confidence": 0-100,
-          "summary": "Forensic summary",
-          "userRecommendation": "Actionable advice",
+          "summary": "Detailed forensic summary of why you reached this conclusion.",
+          "userRecommendation": "Actionable advice for the user.",
           "analysisSteps": {
-            "integrity": {"score": 0-100, "explanation": "string", "confidenceQualifier": "Low" | "Medium" | "High"},
-            "consistency": {"score": 0-100, "explanation": "string", "confidenceQualifier": "Low" | "Medium" | "High"},
-            "aiPatterns": {"score": 0-100, "explanation": "string", "confidenceQualifier": "Low" | "Medium" | "High"},
-            "temporal": {"score": 0-100, "explanation": "string", "confidenceQualifier": "Low" | "Medium" | "High"}
+            "integrity": {"score": 0-100, "explanation": "Metadata and container scan result"},
+            "consistency": {"score": 0-100, "explanation": "Lighting and shadow consistency audit"},
+            "aiPatterns": {"score": 0-100, "explanation": "Presence of neural network generation fingerprints"},
+            "temporal": {"score": 0-100, "explanation": "Motion and frame-to-frame stability"}
           },
           "explanations": [
             {
-              "point": "Short title",
-              "detail": "Deep technical explanation",
+              "point": "Specific finding title",
+              "detail": "Detailed technical explanation of the specific anomaly found.",
               "category": "visual" | "audio" | "temporal" | "integrity",
-              "timestamp": "MM:SS" (REQUIRED for video if applicable)
+              "timestamp": "MM:SS"
             }
-          ],
-          "manipulationType": "string",
-          "guidance": "string"
+          ]
         }` }
       ]
     },
     config: {
       responseMimeType: "application/json",
-      thinkingConfig: { thinkingBudget: 16000 }
+      systemInstruction: "You are the world's most advanced deepfake detection engine. You have a paranoid level of skepticism. You never miss 'plasticky' skin textures, asymmetric pupils, or background warping. You are highly technical and precise.",
+      thinkingConfig: { thinkingBudget: 32768 } // Max budget for pro for deepest reasoning
     }
   });
 
   const data = extractJson(response.text || "{}");
   
-  // Logic to ensure "REAL" is only returned if probability is genuinely low
+  // TIGHTENED VERDICT LOGIC: 
+  // If the model reports > 20% probability, it is flagged as LIKELY_FAKE to ensure safety.
   let finalVerdict = Verdict.LIKELY_FAKE; 
-  if (data.verdict === 'REAL' && (data.deepfakeProbability ?? 0) < 30) {
+  const prob = data.deepfakeProbability ?? 50;
+  
+  if (prob < 20 && data.verdict === 'REAL') {
     finalVerdict = Verdict.REAL;
-  } else if (data.deepfakeProbability >= 30) {
-    finalVerdict = Verdict.LIKELY_FAKE;
   } else {
-    finalVerdict = data.verdict === 'REAL' ? Verdict.REAL : Verdict.LIKELY_FAKE;
+    finalVerdict = Verdict.LIKELY_FAKE;
   }
 
   return {
@@ -190,7 +196,7 @@ export const analyzeMedia = async (file: File, metadata: any): Promise<AnalysisR
     verdict: finalVerdict,
     confidence: data.confidence ?? 50,
     confidenceLevel: (data.confidence > 85 ? 'High' : data.confidence < 50 ? 'Low' : 'Medium') as any,
-    deepfakeProbability: data.deepfakeProbability ?? 50,
+    deepfakeProbability: prob,
     summary: data.summary || "Forensic analysis complete.",
     userRecommendation: data.userRecommendation || "Verify manually.",
     analysisSteps: data.analysisSteps || {
@@ -200,7 +206,7 @@ export const analyzeMedia = async (file: File, metadata: any): Promise<AnalysisR
       temporal: { score: 50, explanation: "Analyzing...", confidenceQualifier: "Medium" }
     },
     explanations: Array.isArray(data.explanations) ? data.explanations : [],
-    manipulationType: data.manipulationType || "Digital Synthesis",
+    manipulationType: data.manipulationType || (prob > 20 ? "Neural Synthesis" : "N/A"),
     guidance: data.guidance || "Caution advised.",
     fileMetadata: metadata
   };

@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, AnalysisResult } from './types.ts';
 import Hero from './components/Hero.tsx';
 import TrustStrip from './components/TrustStrip.tsx';
@@ -20,7 +20,10 @@ import BatchTriage from './components/BatchTriage.tsx';
 import Sidebar from './components/Sidebar.tsx';
 import Logo from './components/Logo.tsx';
 import FloatingAssistant from './components/FloatingAssistant.tsx';
+import GravityContainer from './components/GravityContainer.tsx';
 import { analyzeMedia } from './services/geminiService.ts';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ZapOff, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.HOME);
@@ -29,6 +32,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [privacyMode, setPrivacyMode] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [isGravityActive, setIsGravityActive] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('proofy_history');
@@ -60,10 +64,8 @@ const App: React.FC = () => {
       setCurrentView(View.RESULTS);
     } catch (err: any) {
       console.error("Analysis Error:", err);
-      
       if (err.message === "API_KEY_MISSING") {
         setError("API Key Required. Please select a project key.");
-        // Automatically prompt for key selection as per AI Studio guidelines
         if ((window as any).aistudio) {
           (window as any).aistudio.openSelectKey();
         }
@@ -72,7 +74,6 @@ const App: React.FC = () => {
       } else {
         setError(err.message || "The forensic engine encountered an unexpected error.");
       }
-      
       setCurrentView(View.HOME);
     }
   }, [history]);
@@ -91,7 +92,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-charcoal text-white flex flex-col selection:bg-neon selection:text-black font-sans relative">
+    <div className={`min-h-screen bg-charcoal text-white flex flex-col selection:bg-neon selection:text-black font-sans relative ${isGravityActive ? 'overflow-hidden' : ''}`}>
       <BackgroundGraphics />
       
       <header className="fixed top-0 inset-x-0 h-24 z-[50] pointer-events-none flex items-center px-10 print:hidden">
@@ -118,64 +119,66 @@ const App: React.FC = () => {
       />
 
       <div className="flex-grow flex flex-col relative z-10 overflow-y-auto no-scrollbar pt-0">
-        {currentView === View.HOME && (
+        {currentView === View.HOME && !isGravityActive && (
           <div className="absolute top-8 right-12 z-20 hidden md:block">
             <Logo size="md" onClick={reset} />
           </div>
         )}
 
-        <main className="flex-grow container mx-auto px-6 md:px-12 pt-6 pb-24 max-w-6xl">
-          {currentView === View.HOME && (
-            <div className="space-y-32">
-              <section id="hero-flow">
-                <Hero />
-                <TrustStrip />
-              </section>
-              
-              <div className="max-w-4xl mx-auto space-y-48">
-                <UploadZone onUpload={handleUpload} />
+        <main className={`flex-grow container mx-auto px-6 md:px-12 pt-6 pb-24 max-w-6xl ${isGravityActive ? 'h-screen w-screen max-w-none px-0 pt-0 pb-0' : ''}`}>
+          <GravityContainer isActive={isGravityActive}>
+            {currentView === View.HOME && (
+              <div className="space-y-32">
+                <section id="hero-flow">
+                  <Hero />
+                  <TrustStrip />
+                </section>
+                
+                <div className="max-w-4xl mx-auto space-y-48">
+                  <UploadZone onUpload={handleUpload} />
 
-                {error && (
-                  <div className="p-10 bg-red-950/20 border border-red-500/50 rounded-2xl flex flex-col md:flex-row items-center gap-8 text-red-500 animate-in shake duration-500 shadow-2xl backdrop-blur-md">
-                    <svg className="w-12 h-12 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <div className="flex-grow text-center md:text-left">
-                      <h4 className="font-black uppercase tracking-widest text-sm mb-1">Pipeline Error</h4>
-                      <p className="text-sm opacity-60 font-mono mb-4">{error}</p>
-                      {error.includes("API Key") && (
-                        <button 
-                          onClick={openKeySelection}
-                          className="px-6 py-2 bg-red-500 text-white font-black rounded-lg text-[10px] uppercase tracking-widest hover:bg-red-400 transition-all"
-                        >
-                          Select Project Key
-                        </button>
-                      )}
+                  {error && (
+                    <div className="p-10 bg-red-950/20 border border-red-500/50 rounded-2xl flex flex-col md:flex-row items-center gap-8 text-red-500 animate-in shake duration-500 shadow-2xl backdrop-blur-md">
+                      <svg className="w-12 h-12 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      <div className="flex-grow text-center md:text-left">
+                        <h4 className="font-black uppercase tracking-widest text-sm mb-1">Pipeline Error</h4>
+                        <p className="text-sm opacity-60 font-mono mb-4">{error}</p>
+                        {error.includes("API Key") && (
+                          <button 
+                            onClick={openKeySelection}
+                            className="px-6 py-2 bg-red-500 text-white font-black rounded-lg text-[10px] uppercase tracking-widest hover:bg-red-400 transition-all"
+                          >
+                            Select Project Key
+                          </button>
+                        )}
+                      </div>
                     </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <QuickToolCard 
+                      title="Batch Processing" 
+                      description="Verify multiple suspected files simultaneously." 
+                      icon="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25" 
+                      color="text-neon" 
+                      onClick={() => setCurrentView(View.BATCH_TRIAGE)} 
+                    />
+                    <QuickToolCard 
+                      title="Source Finder" 
+                      description="Identify content origins and check for unauthorized changes." 
+                      icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
+                      color="text-neon" 
+                      onClick={() => setCurrentView(View.REVERSE_GROUNDING)} 
+                    />
                   </div>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                   <QuickToolCard 
-                    title="Batch Processing" 
-                    description="Verify multiple suspected files simultaneously." 
-                    icon="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25" 
-                    color="text-neon" 
-                    onClick={() => setCurrentView(View.BATCH_TRIAGE)} 
-                  />
-                   <QuickToolCard 
-                    title="Source Finder" 
-                    description="Identify content origins and check for unauthorized changes." 
-                    icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
-                    color="text-neon" 
-                    onClick={() => setCurrentView(View.REVERSE_GROUNDING)} 
-                  />
+                  <HowItWorks />
+                  <ForensicDeepDive />
+                  <ResultsPreview />
                 </div>
-
-                <HowItWorks />
-                <ForensicDeepDive />
-                <ResultsPreview />
               </div>
-            </div>
-          )}
+            )}
+          </GravityContainer>
 
           {currentView === View.PROCESSING && <ProcessingScreen />}
           {currentView === View.RESULTS && analysisResult && <ResultsScreen result={analysisResult} onReupload={reset} onOpenReport={() => setCurrentView(View.JUDICIAL_REPORT)} onOpenTimeline={() => setCurrentView(View.FORENSIC_TIMELINE)} />}
@@ -189,6 +192,37 @@ const App: React.FC = () => {
         </main>
       </div>
 
+      {/* Gravity Toggle Buttons */}
+      <div className="fixed bottom-6 left-6 z-[100] flex gap-3">
+        <AnimatePresence mode="wait">
+          {!isGravityActive ? (
+            <motion.button
+              key="destabilize"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              onClick={() => setIsGravityActive(true)}
+              className="p-4 bg-red-600/10 border border-red-600/30 text-red-600 rounded-2xl hover:bg-red-600 hover:text-white transition-all group flex items-center gap-3 overflow-hidden"
+            >
+              <ZapOff size={18} className="group-hover:animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-widest max-w-0 group-hover:max-w-[200px] transition-all duration-500 whitespace-nowrap">Destabilize System</span>
+            </motion.button>
+          ) : (
+            <motion.button
+              key="stabilize"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              onClick={() => setIsGravityActive(false)}
+              className="p-4 bg-neon/10 border border-neon/30 text-neon rounded-2xl hover:bg-neon hover:text-black transition-all group flex items-center gap-3"
+            >
+              <RefreshCw size={18} className="animate-spin-slow" />
+              <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Restore Grid</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+
       <FloatingAssistant currentView={currentView} analysisResult={analysisResult} />
     </div>
   );
@@ -197,7 +231,7 @@ const App: React.FC = () => {
 const QuickToolCard: React.FC<{title: string, description: string, icon: string, color: string, onClick: () => void}> = ({ title, description, icon, color, onClick }) => (
   <button 
     onClick={onClick} 
-    className="bento-card group p-12 text-left overflow-hidden relative border-border bg-surface"
+    className="bento-card group p-12 text-left overflow-hidden relative border-border bg-surface w-full"
   >
     <div className={`w-16 h-16 rounded-2xl bg-surfaceLight flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500 ${color} group-hover:shadow-[0_0_20px_rgba(0,255,136,0.2)]`}>
       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d={icon} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
